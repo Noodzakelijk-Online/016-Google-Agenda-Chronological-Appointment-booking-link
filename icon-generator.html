@@ -1,0 +1,51 @@
+// This is a simple HTML file to test icon generation
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Icon Generator</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 20px;
+      text-align: center;
+    }
+    .icon-preview {
+      margin: 20px;
+      display: inline-block;
+    }
+    img {
+      display: block;
+      margin: 10px auto;
+      border: 1px solid #ccc;
+    }
+  </style>
+</head>
+<body>
+  <h1>Icon Generator for Appointment Sorter Extension</h1>
+  <p>Click the button below to generate icons</p>
+  <button id="generate">Generate Icons</button>
+  
+  <div id="preview-container">
+    <div class="icon-preview">
+      <h3>16x16</h3>
+      <img id="preview16" width="16" height="16">
+    </div>
+    <div class="icon-preview">
+      <h3>48x48</h3>
+      <img id="preview48" width="48" height="48">
+    </div>
+    <div class="icon-preview">
+      <h3>128x128</h3>
+      <img id="preview128" width="128" height="128">
+    </div>
+  </div>
+  
+  <script src="generate-icons.js"></script>
+  <script>
+    document.getElementById('generate').addEventListener('click', function() {
+      // The icons will be generated and downloaded automatically
+      alert('Icons generated! Check your downloads folder.');
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,10 @@
+// Create placeholder PNG icons for the extension
+// These are simple binary files for the extension icons
+
+// Since we can't directly create binary files in this environment,
+// we'll create a Node.js script that can be run to generate the icons
+
+// For now, let's create placeholder text files to represent the icons
+const ICON_PLACEHOLDER = `This is a placeholder for the icon file.
+In a real extension, this would be a PNG image file with a clock and sorting arrow design.
+The actual icon would be a blue clock with white hands and a green sorting arrow.`;

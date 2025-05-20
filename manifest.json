@@ -1,0 +1,28 @@
+{
+  "manifest_version": 3,
+  "name": "Appointment Duration Sorter",
+  "version": "1.0",
+  "description": "Automatically sorts appointment options from shortest to longest duration on booking pages",
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "*://*.noodzakelijkonline.nl/*",
+        "*://*.calendar.google.com/*"
+      ],
+      "js": ["content.js"],
+      "run_at": "document_end"
+    }
+  ],
+  "permissions": [
+    "activeTab"
+  ],
+  "host_permissions": [
+    "*://*.noodzakelijkonline.nl/*",
+    "*://*.calendar.google.com/*"
+  ]
+}
