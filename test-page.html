@@ -1,4 +1,3 @@
-// Simple HTML file to simulate the appointment page for testing
 <!DOCTYPE html>
 <html>
 <head>
@@ -46,6 +45,7 @@
 <body>
   <h1>Appointment Test Page</h1>
   <p>This page simulates the appointment booking interface for testing the Chrome extension.</p>
+  <p id="result" aria-live="polite"></p>
   
   <div class="appointments-container">
     <div class="card">
@@ -110,7 +110,20 @@
     });
   </script>
   
-  <!-- Include the content script for testing -->
+  <section id="unrelated-calendar" role="grid" aria-label="Unrelated calendar grid">
+    <div role="gridcell"><div class="appointment-card">NO 480</div></div>
+    <div role="gridcell"><div class="appointment-card">NO 30</div></div>
+  </section>
+
+  <script>window.__APPOINTMENT_SORTER_TEST__ = true;</script>
+  <!-- Include the content script for testing. The flag above exists only for
+       this local fixture; the packaged extension still uses its host allowlist. -->
   <script src="content.js"></script>
+  <script>
+    // The test page is opened on localhost by the browser check, where the
+    // production host allowlist intentionally keeps the script inactive.
+    const cards = [...document.querySelectorAll('.appointments-container > .card')];
+    document.getElementById('result').textContent = `Fixture order: ${cards.map(card => card.querySelector('.header').textContent).join(', ')}`;
+  </script>
 </body>
 </html>

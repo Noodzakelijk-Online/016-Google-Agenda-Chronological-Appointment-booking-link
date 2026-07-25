@@ -1,260 +1,168 @@
 /**
- * Chrome Extension for Appointment Sorting
- * 
- * This content script automatically rearranges appointment times in chronological order,
- * from shortest to longest duration on noodzakelijkonline.nl and Google Agenda appointment scheduler.
+ * Appointment Duration Sorter
+ *
+ * Reorders sibling appointment choices by their advertised duration.  It is
+ * deliberately conservative: Google Calendar's week/day grid is not an
+ * appointment-choice list, so calendar events and other page controls are
+ * never used as a fallback sorting target.
  */
+(() => {
+  'use strict';
 
-// Configuration
-const config = {
-  // Debounce time in milliseconds to avoid excessive re-sorting
-  debounceTime: 100,
-  
-  // Selectors for different platforms
-  selectors: {
-    // noodzakelijkonline.nl selectors
-    noodzakelijk: {
-      // Container that holds all appointment cards
-      container: '.appointments-container, .appointment-list, .card-container',
-      // Individual appointment cards
-      items: '.card, .appointment-card, .appointment-option',
-      // Fallback if specific selectors don't match
-      fallbackContainer: 'body',
-    },
-    
-    // Google Agenda selectors (estimated based on common patterns)
-    googleAgenda: {
-      // Container that holds all appointment options
-      container: '.appointment-options, .time-slots-container, .gm-appointment-list',
-      // Individual appointment options
-      items: '.appointment-option, .time-slot-item, .gm-appointment-item',
-      // Fallback if specific selectors don't match
-      fallbackContainer: 'body',
+  const DEBOUNCE_MS = 120;
+  const ITEM_SELECTOR = [
+    '.card',
+    '.appointment-option',
+    '.appointment-card',
+    '.appointment-slot',
+    '.booking-slot',
+    '.time-slot',
+    '.time-slot-item',
+    '.gm-appointment-item',
+    'button[aria-label*="minute"]',
+    'button[aria-label*="Minute"]',
+    'button[aria-label*="min"]',
+    'button[aria-label*="Min"]',
+    '[role="button"][class*="slot"]',
+    '[role="button"][class*="time"]',
+    '[data-appointment-duration]',
+    '[data-duration][data-appointment]'
+  ].join(',');
+  const DURATION_ATTRIBUTE_NAMES = [
+    'data-appointment-duration',
+    'data-duration',
+    'data-duration-minutes'
+  ];
+
+  let debounceTimer = null;
+  let observer = null;
+  let paused = document.hidden;
+
+  function isSupportedPage() {
+    if (globalThis.__APPOINTMENT_SORTER_TEST__ === true) return true;
+    const host = location.hostname;
+    if (host.endsWith('noodzakelijkonline.nl') || host === 'calendar.app.google') {
+      return true;
     }
-  },
-  
-  // Domains to activate the extension on
-  domains: [
-    'noodzakelijkonline.nl',
-    'calendar.google.com'
-  ]
-};
 
-// Global variables
-let debounceTimer = null;
-let observer = null;
-
-/**
- * Extract duration in minutes from an appointment element
- * @param {HTMLElement} element - The appointment element
- * @returns {number} - Duration in minutes, or Infinity if not found
- */
-function extractDuration(element) {
-  if (!element) return Infinity;
-  
-  // Get all text content from the element
-  const text = element.textContent || '';
-  
-  // Try to find duration using various patterns
-  
-  // Pattern 1: "NO X" format (like "NO 30")
-  const headerMatch = text.match(/NO\s+(\d+)/i);
-  if (headerMatch && headerMatch[1]) {
-    return parseInt(headerMatch[1], 10);
-  }
-  
-  // Pattern 2: "X minutes" or "X minuten" format
-  const minutesMatch = text.match(/(\d+)\s*(minutes|minuten)/i);
-  if (minutesMatch && minutesMatch[1]) {
-    return parseInt(minutesMatch[1], 10);
-  }
-  
-  // Pattern 3: Just look for numbers followed by "min"
-  const minMatch = text.match(/(\d+)\s*min/i);
-  if (minMatch && minMatch[1]) {
-    return parseInt(minMatch[1], 10);
-  }
-  
-  // Pattern 4: Just find any number in the text (last resort)
-  const numberMatch = text.match(/\d+/);
-  if (numberMatch) {
-    return parseInt(numberMatch[0], 10);
-  }
-  
-  // If no duration found, return Infinity to place at the end
-  return Infinity;
-}
-
-/**
- * Sort appointment elements by duration (shortest to longest)
- * @param {HTMLElement} container - The container element holding appointments
- * @param {string} itemSelector - Selector for individual appointment items
- */
-function sortAppointments(container, itemSelector) {
-  if (!container) return;
-  
-  // Get all appointment elements
-  const items = Array.from(container.querySelectorAll(itemSelector));
-  if (items.length <= 1) return; // No need to sort if 0 or 1 items
-  
-  // Create array of [element, duration] pairs
-  const itemsWithDuration = items.map(item => {
-    return [item, extractDuration(item)];
-  });
-  
-  // Sort by duration (ascending)
-  itemsWithDuration.sort((a, b) => a[1] - b[1]);
-  
-  // Reinsert elements in sorted order
-  itemsWithDuration.forEach(([item]) => {
-    container.appendChild(item);
-  });
-  
-  console.log('Appointments sorted by duration (shortest to longest)');
-}
-
-/**
- * Find the appropriate container element based on selectors
- * @returns {Object} - Object containing container and itemSelector
- */
-function findContainerAndSelector() {
-  const domain = window.location.hostname;
-  let container = null;
-  let itemSelector = '';
-  
-  // Check if we're on noodzakelijkonline.nl
-  if (domain.includes('noodzakelijkonline')) {
-    // Try each selector in the noodzakelijk config
-    const selectors = config.selectors.noodzakelijk;
-    container = document.querySelector(selectors.container);
-    itemSelector = selectors.items;
-    
-    // If container not found, use fallback and search for cards
-    if (!container) {
-      container = document.querySelector(selectors.fallbackContainer);
-      // Look for any div that might contain appointment cards
-      const possibleContainers = Array.from(document.querySelectorAll('div')).filter(div => {
-        const children = div.children;
-        return children.length >= 2 && 
-               Array.from(children).some(child => child.textContent.includes('minuten') || 
-                                                 child.textContent.includes('minutes'));
-      });
-      
-      if (possibleContainers.length > 0) {
-        // Use the container with the most potential appointment cards
-        container = possibleContainers.reduce((a, b) => a.children.length > b.children.length ? a : b);
-      }
-    }
-  } 
-  // Check if we're on Google Calendar
-  else if (domain.includes('calendar.google.com')) {
-    // Try each selector in the googleAgenda config
-    const selectors = config.selectors.googleAgenda;
-    container = document.querySelector(selectors.container);
-    itemSelector = selectors.items;
-    
-    // If container not found, use fallback and search for appointment options
-    if (!container) {
-      container = document.querySelector(selectors.fallbackContainer);
-      // Look for any div that might contain appointment options
-      const possibleContainers = Array.from(document.querySelectorAll('div')).filter(div => {
-        const children = div.children;
-        return children.length >= 2 && 
-               Array.from(children).some(child => child.textContent.includes('min') || 
-                                                 child.textContent.match(/\d+\s*(minutes|minuten)/i));
-      });
-      
-      if (possibleContainers.length > 0) {
-        // Use the container with the most potential appointment options
-        container = possibleContainers.reduce((a, b) => a.children.length > b.children.length ? a : b);
-      }
-    }
-  }
-  
-  return { container, itemSelector };
-}
-
-/**
- * Main function to sort appointments with debouncing
- */
-function sortAppointmentsWithDebounce() {
-  // Clear any existing timer
-  if (debounceTimer) {
-    clearTimeout(debounceTimer);
-  }
-  
-  // Set a new timer
-  debounceTimer = setTimeout(() => {
-    const { container, itemSelector } = findContainerAndSelector();
-    if (container && itemSelector) {
-      sortAppointments(container, itemSelector);
-    } else {
-      console.log('Appointment container not found. Will retry when content changes.');
-    }
-  }, config.debounceTime);
-}
-
-/**
- * Set up mutation observer to watch for DOM changes
- */
-function setupObserver() {
-  // Disconnect any existing observer
-  if (observer) {
-    observer.disconnect();
-  }
-  
-  // Find the container to observe
-  const { container } = findContainerAndSelector();
-  
-  // If no container found, observe the body for changes
-  const targetNode = container || document.body;
-  
-  // Create a new observer
-  observer = new MutationObserver((mutations) => {
-    // Check if any of the mutations involve adding nodes
-    const hasAddedNodes = mutations.some(mutation => 
-      mutation.type === 'childList' && mutation.addedNodes.length > 0
+    // Do not run in the general Calendar UI (week/day/month views). The
+    // extension only needs Google Calendar's public appointment pages.
+    return host === 'calendar.google.com' && (
+      /\/calendar\/(?:selfsched|appointments)(?:\/|$)/.test(location.pathname) ||
+      /\/calendar\/.*\/(?:r\/)?appointment/.test(location.pathname)
     );
-    
-    // Only trigger sort if nodes were added
-    if (hasAddedNodes) {
-      sortAppointmentsWithDebounce();
-    }
-  });
-  
-  // Start observing
-  observer.observe(targetNode, {
-    childList: true,
-    subtree: true
-  });
-  
-  console.log('Mutation observer set up to detect new appointments');
-}
-
-/**
- * Initialize the extension
- */
-function init() {
-  // Check if we're on a supported domain
-  const currentDomain = window.location.hostname;
-  const isSupported = config.domains.some(domain => currentDomain.includes(domain));
-  
-  if (!isSupported) {
-    console.log('Not on a supported domain. Extension inactive.');
-    return;
   }
-  
-  console.log('Appointment Sorter Extension initialized');
-  
-  // Initial sort
-  sortAppointmentsWithDebounce();
-  
-  // Set up observer for dynamic content
-  setupObserver();
-  
-  // Also sort when page is fully loaded
-  window.addEventListener('load', sortAppointmentsWithDebounce);
-}
 
-// Start the extension
-init();
+  function durationFromText(text) {
+    const normalized = text.replace(/\s+/g, ' ').trim();
+    const noDuration = normalized.match(/\bNO\s*(\d+(?:[.,]\d+)?)\b/i);
+    if (noDuration) return Number(noDuration[1].replace(',', '.'));
+
+    const minutes = normalized.match(/\b(\d+(?:[.,]\d+)?)\s*(?:minutes?|minuten|mins?|min)\b/i);
+    if (minutes) return Number(minutes[1].replace(',', '.'));
+
+    const compactMinutes = normalized.match(/\b(\d+(?:[.,]\d+)?)m\b/i);
+    if (compactMinutes) return Number(compactMinutes[1].replace(',', '.'));
+
+    const hours = normalized.match(/\b(\d+(?:[.,]\d+)?)\s*(?:hours?|uren|uur|hr|h)\b/i);
+    return hours ? Number(hours[1].replace(',', '.')) * 60 : Number.POSITIVE_INFINITY;
+  }
+
+  function extractDuration(item) {
+    for (const attribute of DURATION_ATTRIBUTE_NAMES) {
+      const value = item.getAttribute(attribute);
+      if (value !== null) {
+        const parsed = Number(value);
+        if (Number.isFinite(parsed) && parsed > 0) return parsed;
+      }
+    }
+    return durationFromText(`${item.textContent || ''} ${item.getAttribute('aria-label') || ''}`);
+  }
+
+  function isCalendarGridElement(element) {
+    return element.closest('[role="grid"], [role="gridcell"], [role="columnheader"]') !== null;
+  }
+
+  function getSortableItems() {
+    return [...document.querySelectorAll(ITEM_SELECTOR)].filter((item) => {
+      if (!(item instanceof HTMLElement) || !item.parentElement || isCalendarGridElement(item)) return false;
+      return Number.isFinite(extractDuration(item));
+    });
+  }
+
+  function sortRun(run) {
+    if (run.length < 2) return false;
+
+    const sorted = run
+      .map((item, index) => ({ item, index, duration: extractDuration(item) }))
+      .sort((a, b) => a.duration - b.duration || a.index - b.index);
+
+    if (sorted.every((entry, index) => entry.item === run[index])) return false;
+
+    // Reinsert before the element after the run so non-appointment siblings
+    // retain their exact position even though every run item is moved first.
+    const parent = run[0].parentElement;
+    const afterRun = run[run.length - 1].nextSibling;
+    const fragment = document.createDocumentFragment();
+    sorted.forEach(({ item }) => fragment.appendChild(item));
+    parent.insertBefore(fragment, afterRun);
+    return true;
+  }
+
+  function sortAppointmentChoices() {
+    if (paused || !isSupportedPage()) return;
+
+    const byParent = new Map();
+    for (const item of getSortableItems()) {
+      const siblings = byParent.get(item.parentElement) || [];
+      siblings.push(item);
+      byParent.set(item.parentElement, siblings);
+    }
+
+    for (const [parent, items] of byParent) {
+      // Sort only contiguous runs. This avoids moving appointment items across
+      // headings, date separators, consent text, or unrelated controls.
+      const itemSet = new Set(items);
+      let run = [];
+      for (const child of parent.children) {
+        if (itemSet.has(child)) {
+          run.push(child);
+        } else {
+          sortRun(run);
+          run = [];
+        }
+      }
+      sortRun(run);
+    }
+  }
+
+  function scheduleSort() {
+    if (paused || debounceTimer !== null) return;
+    debounceTimer = window.setTimeout(() => {
+      debounceTimer = null;
+      sortAppointmentChoices();
+    }, DEBOUNCE_MS);
+  }
+
+  function startObserver() {
+    observer = new MutationObserver((mutations) => {
+      if (paused) return;
+      if (mutations.some((mutation) => mutation.type === 'childList' && (mutation.addedNodes.length || mutation.removedNodes.length))) {
+        scheduleSort();
+      }
+    });
+    observer.observe(document.documentElement, { childList: true, subtree: true });
+  }
+
+  function init() {
+    if (!isSupportedPage()) return;
+    scheduleSort();
+    startObserver();
+    document.addEventListener('visibilitychange', () => {
+      paused = document.hidden;
+      if (!paused) scheduleSort();
+    });
+  }
+
+  init();
+})();
