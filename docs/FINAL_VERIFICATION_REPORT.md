@@ -8,7 +8,7 @@ This file records evidence, not aspirations. It must be updated after the final 
 - Starting commit: `c7c0d71`
 - Scope: existing Chrome extension plus new chronological booking service
 - Secret/TODO/dead-action scan: PASS; only the isolated test-provider URL matched
-- Final commit/push: pending final run
+- Application commit/push: `e5dca3e`, pushed to `main`
 
 ## Automated verification
 
@@ -21,7 +21,7 @@ This file records evidence, not aspirations. It must be updated after the final 
 | `docker compose config --quiet` | PASS with explicit production variables |
 | Docker image build | BLOCKED: Docker Desktop client 29.6.2 is installed but the Linux engine pipe is not running |
 | Browser QA | PASS via Playwright fallback at 1280x720 and 390x844; no console errors |
-| Fresh-clone dry run | Pending final run |
+| Fresh-clone dry run | PASS at `e5dca3e`: clean canonical-remote clone, 13 tests plus extension tests, check and production build |
 
 ## Browser evidence
 

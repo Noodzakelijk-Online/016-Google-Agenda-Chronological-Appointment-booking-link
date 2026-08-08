@@ -96,7 +96,7 @@
 | 089 Stabilization gates | Implemented | Check, test, build, audit, Docker, browser, fresh-clone sequence |
 | 090 No vanity work | Implemented | Removed speculative reports and placeholder generators |
 | 091 Definition of done | Implemented | Acceptance matrix separates implemented/blocked/N/A |
-| 092 Fresh-clone run | Pending | Must be recorded after commit/push |
+| 092 Fresh-clone run | Implemented | Canonical remote clone at `e5dca3e` passed check, 13 tests and build |
 | 093 Manual evidence | Implemented | Browser QA covers operator, booking, mobile and emergency-stop flows |
 | 094 No-excuses search | Implemented | Final TODO/secret/dead-action scan passed |
 | 095 Completion matrix | Implemented | This file |
