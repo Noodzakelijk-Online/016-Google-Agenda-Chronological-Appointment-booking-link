@@ -1,0 +1,31 @@
+services:
+  booking:
+    build: .
+    environment:
+      APP_ENV: production
+      HOST: 0.0.0.0
+      PORT: 8787
+      BASE_URL: ${BASE_URL:?Set the public HTTPS booking URL}
+      DATABASE_PATH: /app/data/booking.sqlite
+      OWNER_ID: ${OWNER_ID:-owner-local}
+      OWNER_EMAIL: ${OWNER_EMAIL:-owner@example.com}
+      ADMIN_TOKEN: ${ADMIN_TOKEN:?Set a random operator token of at least 24 characters}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:?Set a random 64-character hex encryption key}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      GOOGLE_REDIRECT_URI: ${GOOGLE_REDIRECT_URI:-https://booking.example.com/oauth/google/callback}
+      TRUST_PROXY: ${TRUST_PROXY:-false}
+      RATE_LIMIT_PUBLIC: ${RATE_LIMIT_PUBLIC:-120}
+      RATE_LIMIT_ADMIN: ${RATE_LIMIT_ADMIN:-300}
+    ports:
+      - "127.0.0.1:8787:8787"
+    volumes:
+      - booking-data:/app/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8787/healthz').then(r=>{if(!r.ok)process.exit(1)})"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+volumes:
+  booking-data:

@@ -1,0 +1,26 @@
+.reschedule-box {
+  display: grid;
+  gap: 10px;
+  margin: 18px 0;
+  padding: 16px;
+  background: #f8fafc;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+}
+
+.reschedule-box label {
+  display: grid;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.reschedule-box input {
+  border: 1px solid #cfd6df;
+  border-radius: 6px;
+  padding: 9px;
+}
+
+.reschedule-box .slot-list {
+  max-height: 220px;
+}

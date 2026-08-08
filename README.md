@@ -1,32 +1,43 @@
-# Appointment Duration Sorter
+# Chronological Booking
 
-This Manifest V3 Chrome extension sorts **appointment choices** from the shortest duration to the longest. It supports the Noodzakelijk Online booking pages and Google Calendar appointment-scheduling pages.
+Chronological Booking is a local-first Google Calendar booking service plus the original Manifest V3 appointment-choice sorter. The service provides an operator console, public schedule pages, live Google availability checks, chronological slot selection, audited event creation, Google-managed reminders, and token-protected reschedule/cancel flows.
 
-Supported Google Calendar booking routes include public `selfsched` and appointment pages on `calendar.google.com`, plus `calendar.app.google`. The content script also runs in matching embedded frames, so an embedded public booking page is handled in place.
+## Current operational status
 
-## Safety boundary
+The code and test provider critical path are implemented. Live Google Calendar operation requires operator-owned OAuth credentials, HTTPS for production, an encryption key, and explicit Google consent. The service fails closed when those are absent. It does not claim to create Google Appointment Schedule products; it creates ordinary Calendar events through the official API.
 
-The normal Google Calendar week/day/month grid is intentionally excluded. Calendar events use placement and layout managed by Google; moving those DOM elements would corrupt the calendar interface. The extension only handles recognised, sibling appointment-choice elements and leaves headings, date separators, and unrelated controls where they are.
+## Local setup
 
-## Install for testing
+1. Install Node.js 24 or newer and run `npm ci`.
+2. Copy `.env.example` to `.env`.
+3. Generate `ADMIN_TOKEN` and `ENCRYPTION_KEY` with the commands shown in `.env.example`.
+4. Configure a Google OAuth web client with redirect URI `http://localhost:8787/oauth/google/callback` and add its client ID/secret.
+5. Run `npm run build`, `npm run migrate`, then `npm start`.
+6. Open `http://localhost:8787`, enter the operator token, connect Google Calendar, create a draft schedule, and activate it after calendar verification.
 
-1. Open `chrome://extensions` and enable **Developer mode**.
-2. Select **Load unpacked** and choose this repository folder.
-3. Open a supported appointment page and refresh it.
+The HTTP server binds to `127.0.0.1` in development. Production requires `BASE_URL=https://...`; set `HOST=0.0.0.0` behind a TLS reverse proxy.
 
-The extension watches dynamic page changes. It sorts only a contiguous run of recognised appointment choices, so dynamically added choices are re-sorted without duplicating controls or crossing a section boundary.
+## Chrome appointment-choice sorter
 
-## Supported duration labels
+The original Manifest V3 extension remains available as a separate, local browser feature. Open `chrome://extensions`, enable **Developer mode**, choose **Load unpacked**, and select this repository. It sorts recognised appointment-choice siblings by duration on supported Noodzakelijk Online and Google Calendar public booking routes, including dynamic updates and embedded frames. It deliberately excludes Google Calendar's normal week/day/month event grid. `test-page.html` is the visual fixture and `npm test` retains its repeatable content-script regression test.
 
-Durations can be supplied by `data-appointment-duration`, `data-duration`, or `data-duration-minutes`, or by visible/accessible labels such as `NO 30`, `30 minutes`, `30 minuten`, `30m`, `1 hour`, or `1 uur`. This includes booking buttons where the duration is present only in `aria-label`.
+## Verification
 
-## Test fixture
+- `npm run check` - syntax, manifest, and extension asset checks.
+- `npm test` - domain, DST, conflict, idempotency, reschedule/cancel, API auth, and content-script tests.
+- `npm run build` - production React build.
+- `npm run doctor` - configuration, database, build, and provider readiness.
+- `npm run backup -- ./backups/booking.sqlite` - consistent SQLite backup while the app is stopped.
+- `npm run support:bundle` - redacted diagnostic bundle; secrets and requester data are excluded.
 
-`test-page.html` supplies an unsorted visual fixture. For the repeatable content-script check, run:
+## Safety model
 
-```sh
-npm install
-npm test
-```
+- Calendar writes require a connected Google account and an active schedule.
+- A SQLite `BEGIN IMMEDIATE` transaction serializes local overlap checks and provider mutation per instance.
+- The event ID is deterministic per schedule/idempotency key, preventing duplicate retry events.
+- Google availability is rechecked at confirmation and reschedule.
+- DST gaps and ambiguous fold times are rejected rather than silently shifted.
+- OAuth and manage-token recovery data use AES-256-GCM; public manage tokens are hashed for verification and placed in URL fragments, not server request URLs.
+- Emergency stop blocks new slot discovery and booking while preserving existing events.
 
-The test verifies initial ordering, a dynamically added appointment, and that a calendar grid is not changed.
+See `docs/OPERATOR_RUNBOOK.md`, `docs/SECURITY.md`, and `docs/FINAL_VERIFICATION_REPORT.md` before deployment.
